@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Facturas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+        }
+        #results {
+            margin-top: 20px;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .hidden {
+            display: none;
+        }
+        .download-btn {
+            background-color: #008CBA;
+            margin-top: 20px;
+        }
+        .download-btn:hover {
+            background-color: #007bA0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generador de Facturas</h1>
+    
+    <div class="form-group">
+        <label for="montoTotal">Monto total a facturar (múltiplo de 5000):</label>
+        <input type="number" id="montoTotal" step="5000" min="5000" value="100000">
+    </div>
+    
+    <div class="form-group">
+        <label for="cantidadFacturas">Cantidad de facturas:</label>
+        <input type="number" id="cantidadFacturas" min="1" value="5">
+    </div>
+    
+    <div class="form-group">
+        <label for="montoMinimo">Monto mínimo por factura (múltiplo de 5000):</label>
+        <input type="number" id="montoMinimo" step="5000" min="5000" value="10000">
+    </div>
+    
+    <div class="form-group">
+        <label for="montoMaximo">Monto máximo por factura (múltiplo de 5000):</label>
+        <input type="number" id="montoMaximo" step="5000" min="5000" value="50000">
+    </div>
+    
+    <button id="generar">Generar Facturas</button>
+    
+    <div id="error" class="hidden"></div>
+    
+    <div id="results" class="hidden">
+        <h2>Facturas Generadas</h2>
+        <p id="totalAmount"></p>
+        <table id="invoiceTable">
+            <thead>
+                <tr>
+                    <th>Factura</th>
+                    <th>Monto</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceBody">
+                <!-- Las facturas generadas se insertarán aquí -->
+            </tbody>
+        </table>
+        
+        <button id="downloadCSV" class="download-btn">Descargar CSV</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const generarBtn = document.getElementById('generar');
+            const downloadBtn = document.getElementById('downloadCSV');
+            
+            generarBtn.addEventListener('click', generarFacturas);
+            downloadBtn.addEventListener('click', downloadCSV);
+            
+            function generarFacturas() {
+                // Obtener los valores de los campos
+                const montoTotal = parseInt(document.getElementById('montoTotal').value);
+                const cantidadFacturas = parseInt(document.getElementById('cantidadFacturas').value);
+                const montoMinimo = parseInt(document.getElementById('montoMinimo').value);
+                const montoMaximo = parseInt(document.getElementById('montoMaximo').value);
+                const paso = 5000;
+                
+                const errorDiv = document.getElementById('error');
+                const resultsDiv = document.getElementById('results');
+                
+                // Limpiar errores anteriores
+                errorDiv.innerHTML = '';
+                errorDiv.classList.add('hidden');
+                resultsDiv.classList.add('hidden');
+                
+                try {
+                    // Validaciones básicas
+                    if (montoTotal % paso !== 0) {
+                        throw new Error("El monto total debe ser múltiplo de 5000.");
+                    }
+                    if (montoMinimo % paso !== 0 || montoMaximo % paso !== 0) {
+                        throw new Error("Los montos mínimo y máximo deben ser múltiplos de 5000.");
+                    }
+                    
+                    const minTotal = cantidadFacturas * montoMinimo;
+                    const maxTotal = cantidadFacturas * montoMaximo;
+                    
+                    if (montoTotal < minTotal || montoTotal > maxTotal) {
+                        throw new Error("No es posible generar facturas con los parámetros dados.");
+                    }
+                    
+                    // Generar facturas
+                    const facturas = [];
+                    let restante = montoTotal;
+                    
+                    for (let i = 0; i < cantidadFacturas - 1; i++) {
+                        const maximoPosible = Math.min(montoMaximo, restante - montoMinimo * (cantidadFacturas - i - 1));
+                        const minimoPosible = Math.max(montoMinimo, restante - montoMaximo * (cantidadFacturas - i - 1));
+                        
+                        // Convertir a múltiplos del paso
+                        const opciones = [];
+                        for (let monto = minimoPosible; monto <= maximoPosible; monto += paso) {
+                            opciones.push(monto);
+                        }
+                        
+                        // Seleccionar aleatoriamente un monto de las opciones
+                        const monto = opciones[Math.floor(Math.random() * opciones.length)];
+                        facturas.push(monto);
+                        restante -= monto;
+                    }
+                    
+                    // Última factura
+                    let ultimaFactura = restante;
+                    
+                    if (ultimaFactura < montoMinimo) {
+                        // Buscar la factura con el monto mayor
+                        let indexMayor = 0;
+                        for (let i = 1; i < facturas.length; i++) {
+                            if (facturas[i] > facturas[indexMayor]) {
+                                indexMayor = i;
+                            }
+                        }
+                        
+                        const diferencia = montoMinimo - ultimaFactura;
+                        
+                        if ((facturas[indexMayor] - diferencia >= montoMinimo) && (diferencia % paso === 0)) {
+                            facturas[indexMayor] -= diferencia;
+                            ultimaFactura += diferencia;
+                        } else {
+                            throw new Error("No se pudo ajustar la última factura sin violar los mínimos.");
+                        }
+                    }
+                    
+                    facturas.push(ultimaFactura);
+                    
+                    // Mostrar los resultados
+                    mostrarResultados(facturas);
+                    
+                } catch (error) {
+                    // Mostrar mensaje de error
+                    errorDiv.innerHTML = `Error: ${error.message}`;
+                    errorDiv.classList.remove('hidden');
+                }
+            }
+            
+            function mostrarResultados(facturas) {
+                const resultsDiv = document.getElementById('results');
+                const totalAmount = document.getElementById('totalAmount');
+                const invoiceBody = document.getElementById('invoiceBody');
+                
+                // Calcular suma total
+                const suma = facturas.reduce((total, monto) => total + monto, 0);
+                
+                // Mostrar el total
+                totalAmount.textContent = `Total: $${suma.toLocaleString()}`;
+                
+                // Limpiar la tabla anterior
+                invoiceBody.innerHTML = '';
+                
+                // Llenar la tabla con las facturas
+                facturas.forEach((monto, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>$${monto.toLocaleString()}</td>
+                    `;
+                    invoiceBody.appendChild(row);
+                });
+                
+                // Mostrar los resultados
+                resultsDiv.classList.remove('hidden');
+            }
+            
+            function downloadCSV() {
+                const invoiceTable = document.getElementById('invoiceTable');
+                const rows = invoiceTable.querySelectorAll('tr');
+                
+                let csvContent = "data:text/csv;charset=utf-8,Factura,Monto\r\n";
+                
+                // Comenzar desde la segunda fila (ignorar el encabezado)
+                for (let i = 1; i < rows.length; i++) {
+                    const cells = rows[i].querySelectorAll('td');
+                    const facturaNum = cells[0].textContent;
+                    // Eliminar el signo de dólar y las comas del monto
+                    const monto = cells[1].textContent.replace('$', '').replace(/,/g, '');
+                    
+                    csvContent += `${facturaNum},${monto}\r\n`;
+                }
+                
+                // Crear un enlace para descargar
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement('a');
+                link.setAttribute('href', encodedUri);
+                link.setAttribute('download', 'facturas.csv');
+                document.body.appendChild(link);
+                
+                // Simular clic
+                link.click();
+                
+                // Eliminar el enlace
+                document.body.removeChild(link);
+            }
+        });
+    </script>
+</body>
+</html>
