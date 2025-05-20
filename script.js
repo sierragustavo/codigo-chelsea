@@ -92,30 +92,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (ultima_factura > monto_maximo) {
              // If the last invoice is too high, try to increase other invoices
-            let foundAdjustment = false;
-            for (let i = 0; i < facturas.length; i++) {
-                const diffExcess = ultima_factura - monto_maximo;
-                if (facturas[i] + diffExcess <= monto_maximo && diffExcess % paso === 0) {
-                    facturas[i] += diffExcess;
-                    ultima_factura -= diffExcess;
-                    foundAdjustment = true;
-                    break;
-                }
+            let distributedExcess = 0;
+            for (let i = 0; i < facturas.length && distributedExcess < (ultima_factura - monto_maximo); i++) {
+                const room = monto_maximo - facturas[i];
+                const canAdd = Math.min(room, (ultima_factura - monto_maximo) - distributedExcess);
+                const actualAdd = Math.floor(canAdd / paso) * paso; // Ensure it's a multiple of paso
+                facturas[i] += actualAdd;
+                distributedExcess += actualAdd;
             }
-            if (!foundAdjustment) {
-                // If direct adjustment fails, try distributing the excess
-                let distributedExcess = 0;
-                for (let i = 0; i < facturas.length && distributedExcess < (ultima_factura - monto_maximo); i++) {
-                    const room = monto_maximo - facturas[i];
-                    const canAdd = Math.min(room, (ultima_factura - monto_maximo) - distributedExcess);
-                    const actualAdd = Math.floor(canAdd / paso) * paso; // Ensure it's a multiple of paso
-                    facturas[i] += actualAdd;
-                    distributedExcess += actualAdd;
-                }
-                ultima_factura -= distributedExcess;
-                if (ultima_factura > monto_maximo) {
-                     throw new Error("No se pudo ajustar la última factura sin violar los máximos.");
-                }
+            ultima_factura -= distributedExcess;
+            if (ultima_factura > monto_maximo) {
+                 throw new Error("No se pudo ajustar la última factura sin violar los máximos.");
             }
         }
 
@@ -158,15 +145,24 @@ document.addEventListener('DOMContentLoaded', () => {
         html += '</table>';
         html += `<p><strong>Total: $${total.toLocaleString('es-AR')}</strong></p>`;
 
-        // Create CSV content
-        let csvContent = "Factura,Monto\n";
+        // Prepare data for XLSX
+        const wsData = [
+            ["Factura", "Monto"]
+        ];
         facturas.forEach((monto, index) => {
-            csvContent += `${index + 1},${monto}\n`;
+            wsData.push([index + 1, monto]);
         });
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Facturas");
+
+        // Write and download the XLSX file
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/octet-stream' }); // Use octet-stream for general binary data
         const url = URL.createObjectURL(blob);
-        html += `<a href="${url}" download="facturas.csv" class="download-button">Descargar CSV</a>`;
+
+        html += `<a href="${url}" download="facturas.xlsx" class="download-button">Descargar XLSX</a>`;
 
         resultDiv.innerHTML = html;
         resultDiv.style.display = 'block';
